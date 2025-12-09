@@ -5,6 +5,11 @@
 local cuffed = {}
 local cuffAngle = {}
 
+local REQUIRED_ITEMS = {
+    'handcuffs',
+    'kabelbinder',
+}
+
 local function isOnline(id) return id and GetPlayerPing(id) end
 
 -- serverseitig: Heading -> Forward-Vektor (wie clientseitiges GetEntityForwardVector)
@@ -42,12 +47,35 @@ local function computeAngle(src, targetId)
     return (dot > 0.0) and 'front' or 'back'
 end
 
+local function hasCuffItem(src)
+    local ok, count = pcall(function()
+        local total = 0
+        for _, item in ipairs(REQUIRED_ITEMS) do
+            total = total + (exports.ox_inventory:Search(src, 'count', item) or 0)
+        end
+        return total
+    end)
+
+    if not ok then
+        print(('[g5g] WARN: ox_inventory Search fehlgeschlagen (%s)'):format(count))
+        return true -- Fallback: nicht blockieren, falls Inventar-Ressource fehlt
+    end
+
+    return (count or 0) > 0
+end
+
 -- Toggle Cuffs
 RegisterNetEvent('g5g:interact:cuff:toggle', function(targetId)
     local src = source
     if not isOnline(targetId) or src == targetId then return end
 
     local becomingCuffed = not cuffed[targetId]
+
+    if becomingCuffed and not hasCuffItem(src) then
+        TriggerClientEvent('okokNotify:Alert', src, 'Fesseln', 'Du benötigst Handschellen oder Kabelbinder.', 3500, 'error', false)
+        return
+    end
+
     cuffed[targetId] = becomingCuffed
 
     if becomingCuffed then
